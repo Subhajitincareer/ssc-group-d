@@ -1703,24 +1703,19 @@
         async function generateMockTest() {
             const btn = document.getElementById('generateMockTest');
             const originalText = btn.innerHTML;
-
             btn.innerHTML = '<div class="loading"></div> তৈরি হচ্ছে...';
             btn.disabled = true;
 
             try {
-                const apiKeyToUse = getApiKeyToUse();
-                const requestBody = {
-                    subject: selectedSubject,
-                    difficulty: selectedDifficulty,
-                    questionCount: selectedQuestionCount,
-                    language: 'bengali',
-                    examType: 'wbssc-group-d'
-                };
+                // Prepare request payload
+                const subject = selectedSubject;         // e.g., 'mixed'
+                const difficulty = selectedDifficulty;   // e.g., 'medium'
+                const questionCount = selectedQuestionCount; // e.g., 10
+                const apiKey = getUserApiKey();          // optional user API key
 
-                if (apiKeyToUse) {
-                    requestBody.apiKey = apiKeyToUse;
-                }
+                const requestBody = { subject, difficulty, questionCount, apiKey };
 
+                // Fetch mock-test endpoint
                 const response = await fetch(`${API_BASE_URL}/mock-test`, {
                     method: 'POST',
                     headers: {
@@ -1730,6 +1725,7 @@
                     body: JSON.stringify(requestBody)
                 });
 
+                // Handle HTTP errors
                 if (!response.ok) {
                     const errorText = await response.text();
                     throw new Error(`HTTP ${response.status}: ${errorText}`);
@@ -1737,49 +1733,42 @@
 
                 const data = await response.json();
 
-                if (data.success && data.questions && data.questions.length > 0) {
-                    mockTestQuestions = data.questions;
-                    selectedAnswers = [];
-                    currentQuestionIndex = 0;
-                    score = 0;
-                    quizResults = [];
-
-                    document.getElementById('mockTestSelector').classList.add('hidden');
-                    document.getElementById('currentQuestion').classList.remove('hidden');
-                    document.getElementById('quizNavigation').classList.remove('hidden');
-
-                    loadQuestion();
-
-                    const apiSource = data.metadata.usedApiKey === 'user' ? 'আপনার API' : 'ডিফল্ট API';
-                    showNotification(`${data.questions.length}টি প্রশ্ন সফলভাবে তৈরি হয়েছে! (${apiSource} ব্যবহার করে)`);
-                } else {
-                    throw new Error(data.error || 'প্রশ্ন তৈরি করতে সমস্যা হয়েছে');
-                }
-            } catch (error) {
-                console.error('Detailed error:', error);
-
-                let errorMessage = 'মক টেস্ট তৈরি করতে সমস্যা হয়েছে।';
-
-                if (error.name === 'TypeError' && error.message.includes('fetch')) {
-                    errorMessage = 'সার্ভারের সাথে সংযোগ স্থাপন করতে পারছে না। সার্ভার চালু আছে কিনা দেখুন।';
-                } else if (error.message.includes('CORS')) {
-                    errorMessage = 'CORS নীতি দ্বারা অনুরোধ ব্লক হয়েছে। সার্ভার কনফিগারেশন চেক করুন।';
-                } else if (error.message.includes('500')) {
-                    errorMessage = 'সার্ভার এরর। API কী সেট করা আছে কিনা চেক করুন।';
-                } else if (error.message.includes('403') || error.message.includes('API_KEY_INVALID')) {
-                    errorMessage = 'API কী সমস্যা। আপনার API কী চেক করুন বা ডিফল্ট API ব্যবহার করুন।';
-                    if (getUserApiKey()) {
-                        errorMessage += ' API সেটিংস থেকে কী মুছে ডিফল্ট API ব্যবহার করুন।';
-                    }
+                // Check API success flag
+                if (!data.success) {
+                    throw new Error(data.error || 'Mock test generation failed');
                 }
 
-                showNotification(errorMessage, 'error');
+                // Safely access metadata
+                const metadata = data.metadata || {};
+                const usedApiKey = metadata.usedApiKey || 'default';
+                const responseTime = metadata.responseTime || null;
+
+                console.log('Used API Key:', usedApiKey);
+                console.log('Response Time (ms):', responseTime);
+                console.log('Questions:', data.questions);
+
+                // Proceed to load questions into UI
+                mockTestQuestions = data.questions;
+                selectedAnswers = [];
+                currentQuestionIndex = 0;
+                score = 0;
+
+                document.getElementById('mockTestSelector').classList.add('hidden');
+                document.getElementById('currentQuestion').classList.remove('hidden');
+                document.getElementById('quizNavigation').classList.remove('hidden');
+
+                loadQuestion();
+
+                showNotification(`${data.questions.length}টি প্রশ্ন তৈরি হয়েছে! (${usedApiKey} API ব্যবহার)`, 'success');
+
+            } catch (err) {
+                console.error('Detailed error:', err);
+                showNotification(err.message, 'error');
             } finally {
                 btn.innerHTML = originalText;
                 btn.disabled = false;
             }
         }
-
         function toggleMenu() {
             document.getElementById('navLinks').classList.toggle('active');
         }
